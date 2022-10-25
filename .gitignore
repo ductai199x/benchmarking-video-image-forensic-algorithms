@@ -1,0 +1,5 @@
+*log_dump*
+bin/
+etc/
+*__pycache__*
+*log_dump*
