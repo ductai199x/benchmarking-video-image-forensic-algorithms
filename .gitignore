@@ -3,3 +3,4 @@ bin/
 etc/
 *__pycache__*
 *log_dump*
+*ckpt*
