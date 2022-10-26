@@ -40,15 +40,14 @@ ARCH_CHOICES = [
 
 
 def get_model(model_codename: str) -> LightningModule:
-    from models.video_transformer import VideoTransformer
-    from models.fsg import FSGWholeImageEvalPLWrapper as FSG
-    from models.exifnet import ExifnetImageEvalPLWrapper as Exifnet
-
     if model_codename == "video_transformer":
+        from models.video_transformer import VideoTransformer
         return VideoTransformer
     elif model_codename == "fsg":
+        from models.fsg import FSGWholeImageEvalPLWrapper as FSG
         return FSG
     elif model_codename == "exif":
+        from models.exifnet import ExifnetImageEvalPLWrapper as Exifnet
         return Exifnet
     else:
         raise NotImplementedError
