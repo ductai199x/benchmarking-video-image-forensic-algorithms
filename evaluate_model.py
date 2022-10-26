@@ -20,7 +20,6 @@ if torchmetrics_version > [0, 7, 0]:
 
 parser = argparse.ArgumentParser()
 
-BATCH_SIZE = 10
 NUM_WORKERS = 8
 SHUFFLE = True
 torch.manual_seed(42)
@@ -74,7 +73,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         )
         test_dl = DataLoader(
             GenericImageDataset(img_files),
-            batch_size=BATCH_SIZE,
+            batch_size=ARGS.batch_size,
             num_workers=NUM_WORKERS,
             shuffle=SHUFFLE,
         )
@@ -84,7 +83,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         )
         test_dl = DataLoader(
             GenericImageDataset(img_files),
-            batch_size=BATCH_SIZE,
+            batch_size=ARGS.batch_size,
             num_workers=NUM_WORKERS,
             shuffle=SHUFFLE,
         )
@@ -94,7 +93,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         )
         test_dl = DataLoader(
             GenericImageDataset(img_files),
-            batch_size=BATCH_SIZE,
+            batch_size=ARGS.batch_size,
             num_workers=NUM_WORKERS,
             shuffle=SHUFFLE,
         )
@@ -106,7 +105,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         )
         test_dl = DataLoader(
             VideoShamAdobeDataset(img_files),
-            batch_size=BATCH_SIZE,
+            batch_size=ARGS.batch_size,
             num_workers=NUM_WORKERS,
             shuffle=SHUFFLE,
         )
@@ -119,7 +118,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         )
         test_dl = DataLoader(
             E2fgviDavisDataset(img_files, resolution=(1080, 1920)),
-            batch_size=BATCH_SIZE,
+            batch_size=ARGS.batch_size,
             num_workers=NUM_WORKERS,
             shuffle=SHUFFLE,
         )
@@ -162,6 +161,12 @@ def parse_args():
         choices=[1, 2, 3, 4],
         help="The specific resolution divider for e2fgvi that you want to benchmark on",
         default=1,
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="The batch size for the dataloader",
+        default=10,
     )
     ARGS = parser.parse_args()
 
