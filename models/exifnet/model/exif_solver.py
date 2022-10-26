@@ -29,7 +29,7 @@ class ExifSolver(object):
         self.use_exif_summary = use_exif_summary
         self.init_summary = init_summary
         self.ckpt_path = os.path.join("./ckpt", exp_name, exp_name)
-        io.make_dir(self.ckpt_path)
+        # io.make_dir(self.ckpt_path)
 
         self.train_iterations = 10000000
         self.test_init = True
