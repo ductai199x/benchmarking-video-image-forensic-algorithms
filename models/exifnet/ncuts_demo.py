@@ -5,9 +5,8 @@ import time
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.cluster import DBSCAN
 
-import demo
+from . import demo
 
 if __name__ == "__main__":
     plt.switch_backend("agg")

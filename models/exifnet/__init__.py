@@ -39,7 +39,11 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
         localization_preds = []
 
         for image in x:
-            meanshift = self.model.run(image.permute(1, 2, 0).cpu().numpy(), use_ncuts=False, blue_high=True)
+            meanshift = self.model.run(
+                image.permute(1, 2, 0).cpu().numpy(), 
+                use_ncuts=False, 
+                blue_high=True,
+            )
 
             detection_pred = meanshift.mean()
             amplitude = meanshift.max() - meanshift.min()
