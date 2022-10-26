@@ -49,6 +49,8 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
             amplitude = meanshift.max() - meanshift.min()
             if amplitude > 1e-10:
                 loc_pixel_map = (meanshift - meanshift.min()) / amplitude
+            else:
+                loc_pixel_map = meanshift
             loc_pixel_map = torch.tensor(loc_pixel_map > 0.25).to(torch.uint8)
             loc_pixel_map = loc_pixel_map / 1.0
 
