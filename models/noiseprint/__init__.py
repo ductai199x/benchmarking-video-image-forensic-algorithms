@@ -66,7 +66,6 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
                 self.x_data,
                 image,
                 self.QF,
-                model_name="net",
             )
             loc_pixel_map, _, _, _, _, _ = noiseprint_blind_post(residual, image)
             if loc_pixel_map is None:
