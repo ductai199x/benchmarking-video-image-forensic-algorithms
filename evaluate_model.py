@@ -19,7 +19,6 @@ if torchmetrics_version > [0, 7, 0]:
 
 parser = argparse.ArgumentParser()
 
-NUM_WORKERS = 8
 SHUFFLE = True
 torch.manual_seed(42)
 
@@ -84,7 +83,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     elif ds_choice == "image_vis_aug":
@@ -94,7 +93,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     elif ds_choice == "image_invis_aug":
@@ -105,7 +104,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     elif ds_choice == "video_adv_splc":
@@ -115,7 +114,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     elif ds_choice == "video_vis_aug":
@@ -125,7 +124,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     elif ds_choice == "video_invis_aug":
@@ -135,7 +134,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     elif ds_choice == "video_sham_adobe":
@@ -147,7 +146,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             VideoShamAdobeDataset(img_files),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     elif ds_choice == "video_e2fgvi_davis":
@@ -160,7 +159,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
         test_dl = DataLoader(
             E2fgviDavisDataset(img_files, resolution=(1080, 1920)),
             batch_size=ARGS.batch_size,
-            num_workers=NUM_WORKERS,
+            num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,
         )
     else:
@@ -215,6 +214,12 @@ def parse_args():
         choices=["cpu", "cuda"],
         help="The device {cpu, cuda} to load the data on",
         default="cuda",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        help="The number of parallel worker for the dataloader",
+        default=8,
     )
     ARGS = parser.parse_args()
 

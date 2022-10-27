@@ -27,7 +27,7 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
         self.use_gpu = use_gpu
         self.quality = quality
         self.num_per_dim = num_per_dim
-        # self.model = Exifnet(self.ckpt_path, self.use_gpu, self.quality, self.num_per_dim)
+        self.model = Exifnet(self.ckpt_path, self.use_gpu, self.quality, self.num_per_dim)
 
         self.test_class_acc = Accuracy()
         self.test_class_auc = AUROC(num_classes=2, compute_on_step=False)
@@ -38,14 +38,12 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
         x, y, m = batch
         B, C, H, W = x.shape
 
-        model = Exifnet(self.ckpt_path, self.use_gpu, self.quality, self.num_per_dim)
-
         # initialize batch predictions:
         detection_preds = []
         localization_preds = []
 
         for image in x:
-            meanshift = model.run(
+            meanshift = self.model.run(
                 image.permute(1, 2, 0).cpu().numpy(),
                 use_ncuts=False,
                 blue_high=True,
