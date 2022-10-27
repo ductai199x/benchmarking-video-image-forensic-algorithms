@@ -2,7 +2,7 @@ from typing import *
 
 import torch
 import torchvision
-from pytorch_lightning.core.module import LightningModule
+from lightning.pytorch import LightningModule
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef

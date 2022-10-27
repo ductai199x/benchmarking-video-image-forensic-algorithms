@@ -1,7 +1,7 @@
 from typing import *
 
 import torch
-from pytorch_lightning.core.module import LightningModule
+from lightning.pytorch import LightningModule
 from torch import Tensor, nn
 from torch.nn import functional as F
 from torch.nn.common_types import _size_2_t

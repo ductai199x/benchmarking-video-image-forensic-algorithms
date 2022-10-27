@@ -1,4 +1,4 @@
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
 

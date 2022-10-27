@@ -4,8 +4,8 @@ from typing import *
 
 import torch
 import torchmetrics
-from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.callbacks import TQDMProgressBar
+from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch.callbacks import TQDMProgressBar
 from torch.utils.data import DataLoader
 
 from custom_dataset_classes import *
@@ -65,7 +65,7 @@ def get_model(model_codename: str) -> LightningModule:
 
 def get_trainer():
     return Trainer(
-        accelerator="cuda",
+        accelerator=ARGS.device,
         devices=1,
         max_epochs=-1,
         enable_model_summary=False,
@@ -208,6 +208,13 @@ def parse_args():
         type=int,
         help="The batch size for the dataloader",
         default=10,
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        choices=["cpu", "cuda"],
+        help="The device {cpu, cuda} to load the data on",
+        default="cuda",
     )
     ARGS = parser.parse_args()
 
