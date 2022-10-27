@@ -77,13 +77,10 @@ def get_trainer():
 
 def get_dataset(ds_choice: str) -> DataLoader:
     if ds_choice == "image_adv_splc":
-        img_files = random.sample(
-            get_all_files(
-                "/media/nas2/graph_sim_data/image_cam_model_splicing/test",
-                suffix=".png",
-            ),
-            200,
-        )
+        img_files = get_all_files(
+            "/media/nas2/graph_sim_data/image_cam_model_splicing/test",
+            suffix=".png",
+        ),
         test_dl = DataLoader(
             GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
