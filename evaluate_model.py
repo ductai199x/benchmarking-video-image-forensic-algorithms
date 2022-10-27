@@ -1,8 +1,7 @@
 import argparse
+import random
 from typing import *
-from lightning import LightningDataModule
 
-import matplotlib.pyplot as plt
 import torch
 import torchmetrics
 from pytorch_lightning import LightningModule, Trainer
@@ -25,6 +24,9 @@ SHUFFLE = True
 torch.manual_seed(42)
 
 DS_CHOICES = [
+    "image_adv_splc",
+    "image_vis_aug",
+    "image_invis_aug",
     "video_adv_splc",
     "video_vis_aug",
     "video_invis_aug",
@@ -36,19 +38,27 @@ ARCH_CHOICES = [
     "video_transformer",
     "fsg",
     "exif",
+    "noiseprint",
 ]
 
 
 def get_model(model_codename: str) -> LightningModule:
     if model_codename == "video_transformer":
         from models.video_transformer import VideoTransformer
+
         return VideoTransformer
     elif model_codename == "fsg":
         from models.fsg import FSGWholeImageEvalPLWrapper as FSG
+
         return FSG
     elif model_codename == "exif":
         from models.exifnet import ExifnetImageEvalPLWrapper as Exifnet
+
         return Exifnet
+    elif model_codename == "noiseprint":
+        from models.noiseprint import NoiseprintImageEvalPLWrapper as Noiseprint
+
+        return Noiseprint
     else:
         raise NotImplementedError
 
@@ -66,7 +76,42 @@ def get_trainer():
 
 
 def get_dataset(ds_choice: str) -> DataLoader:
-    if ds_choice == "video_adv_splc":
+    if ds_choice == "image_adv_splc":
+        img_files = random.sample(
+            get_all_files(
+                "/media/nas2/graph_sim_data/image_cam_model_splicing/test",
+                suffix=".png",
+            ),
+            200,
+        )
+        test_dl = DataLoader(
+            GenericImageDataset(img_files),
+            batch_size=ARGS.batch_size,
+            num_workers=NUM_WORKERS,
+            shuffle=SHUFFLE,
+        )
+    elif ds_choice == "image_vis_aug":
+        img_files = get_all_files(
+            "/media/nas2/graph_sim_data/image_visible_aug/test", suffix=".png"
+        )
+        test_dl = DataLoader(
+            GenericImageDataset(img_files),
+            batch_size=ARGS.batch_size,
+            num_workers=NUM_WORKERS,
+            shuffle=SHUFFLE,
+        )
+    elif ds_choice == "image_invis_aug":
+        img_files = get_all_files(
+            "/media/nas2/graph_sim_data/image_invisible_aug_super_low_SSIM_loss/val",
+            suffix=".png",
+        )
+        test_dl = DataLoader(
+            GenericImageDataset(img_files),
+            batch_size=ARGS.batch_size,
+            num_workers=NUM_WORKERS,
+            shuffle=SHUFFLE,
+        )
+    elif ds_choice == "video_adv_splc":
         img_files = get_all_files(
             "/media/nas2/graph_sim_data/video_advanced_splicing/test", suffix=".png"
         )

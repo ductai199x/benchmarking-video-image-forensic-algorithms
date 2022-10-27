@@ -40,8 +40,8 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
 
         for image in x:
             meanshift = self.model.run(
-                image.permute(1, 2, 0).cpu().numpy(), 
-                use_ncuts=False, 
+                image.permute(1, 2, 0).cpu().numpy(),
+                use_ncuts=False,
                 blue_high=True,
             )
 
@@ -57,8 +57,12 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
             detection_preds.append(detection_pred)
             localization_preds.append(loc_pixel_map)
 
-        self.test_class_acc(torch.tensor(detection_preds).to(self.device), y.to(self.device))
-        self.test_class_auc(torch.tensor(detection_preds).to(self.device), y.to(self.device))
+        self.test_class_acc(
+            torch.tensor(detection_preds).to(self.device), y.to(self.device)
+        )
+        self.test_class_auc(
+            torch.tensor(detection_preds).to(self.device), y.to(self.device)
+        )
         for i in range(B):
             loc_pred = localization_preds[i].clone().detach().to(self.device)
             true_mask = m[i].to(self.device)
@@ -71,11 +75,15 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
         self.log("test_class_auc", self.test_class_auc.compute())
         self.log("test_class_acc", self.test_class_acc.compute())
 
-        self.test_class_probs = torch.concat([preds_batch for preds_batch in self.test_class_auc.preds])
+        self.test_class_probs = torch.concat(
+            [preds_batch for preds_batch in self.test_class_auc.preds]
+        )
         self.test_class_preds = torch.concat(
             [(preds_batch > 0.5).int() for preds_batch in self.test_class_auc.preds]
         )
-        self.test_class_truths = torch.concat([truths_batch for truths_batch in self.test_class_auc.target])
+        self.test_class_truths = torch.concat(
+            [truths_batch for truths_batch in self.test_class_auc.target]
+        )
 
         pos_labels = self.test_class_truths == 1
         pos_preds = self.test_class_preds[pos_labels] == 1
