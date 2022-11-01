@@ -135,6 +135,7 @@ class FSGWholeImageEvalPLWrapper(pl.LightningModule):
             torch.tensor(detection_preds).to(self.device), y.to(self.device)
         )
         for i in range(B):
+            if y[i] == 0: continue
             loc_pred = torch.tensor(localization_preds[i]).to(self.device)
             true_mask = m[i].to(self.device)
             self.test_loc_f1(loc_pred, true_mask)
