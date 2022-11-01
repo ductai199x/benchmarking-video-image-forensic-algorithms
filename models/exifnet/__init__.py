@@ -95,7 +95,7 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
         neg_labels = self.test_class_truths == 0
         neg_preds = self.test_class_preds[neg_labels] == 0
         self.log("test_class_tpr", pos_preds.sum() / pos_labels.sum())
-        self.log("test_class_fnr", neg_preds.sum() / neg_labels.sum())
+        self.log("test_class_tnr", neg_preds.sum() / neg_labels.sum())
 
 
 ExifnetImageEvalPLWrapper = ExifnetImageEvalPLWrapper(

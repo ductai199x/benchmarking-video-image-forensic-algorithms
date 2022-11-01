@@ -150,7 +150,7 @@ def get_dataset(ds_choice: str) -> DataLoader:
             shuffle=SHUFFLE,
         )
     elif ds_choice == "video_e2fgvi_davis":
-        resolution_divider = 1
+        resolution_divider = ARGS.e2fgvi_res_div
         resolution = (1080 // resolution_divider, 1920 // resolution_divider)
         img_files = get_all_files(
             f"/media/nas2/Tai/13-e2fgvi-video-inpainting/ds_{resolution[1]}x{resolution[0]}",

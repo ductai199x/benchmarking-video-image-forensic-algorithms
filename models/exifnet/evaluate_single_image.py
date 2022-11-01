@@ -4,14 +4,18 @@ import sys
 sys.path.insert(0, os.getcwd())
 
 import numpy as np
-from PIL import Image
-
 import tensorflow as tf
+import torch
+from PIL import Image
+from torchvision.transforms import ToTensor
+
 physical_devices = tf.config.list_physical_devices("GPU")
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
 tf.compat.v1.disable_eager_execution()
 
 from models.exifnet.demo import Demo as Exifnet
+
+to_tensor = ToTensor()
 
 exif_ckpt_path = sys.argv[1]
 img_path = sys.argv[2]
@@ -26,7 +30,10 @@ else:
     label = 0
 
 
-img = Image.open(img_path, mode="r")
+img = to_tensor(Image.open(img_path, mode="r")) * 255
+img = img.float()[0:3]
+if img.shape[1] != 1080:
+    img = crop(img, 0, 0, 1080, 1920)
 img = np.array(img).astype(np.float32)
 
 exifnet = Exifnet(
