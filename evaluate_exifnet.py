@@ -13,6 +13,7 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
 from torchvision.transforms import ToTensor
+from torchvision.transforms.functional import crop, pad, resize
 from tqdm.auto import tqdm
 
 from custom_dataset_classes import *
@@ -191,6 +192,8 @@ def main():
             if detection_label == 1:
                 # Load the ground-truth mask
                 gt_mask = to_tensor(Image.open(f"{img_folder}/{img_filename}.mask", mode="r")).squeeze().int()
+                if gt_mask.shape[0] != 1080:
+                    gt_mask = crop(gt_mask, 0, 0, 1080, 1920)
 
                 # Produce localization map from the meanshift heatmap
                 amplitude = meanshift.max() - meanshift.min()
