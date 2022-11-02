@@ -38,6 +38,7 @@ open_proc = lambda cmd_list: subprocess.Popen(
 to_tensor = ToTensor()
 is_shuffle = True
 random.seed(42)
+torch.set_printoptions(precision=15)
 
 
 def get_dataset(ds_choice: str) -> DataLoader:
@@ -84,6 +85,11 @@ def parse_args():
         "--compute-metrics",
         action="store_true",
         help="Enable this flag to start computing metrics using the results from the temporary results folder",
+    )
+    parser.add_argument(
+        "--clean-result-dir",
+        action="store_true",
+        help="Enable this flag to clean temp result directory. Won't do anything with --compute-metrics enabled.",
     )
     parser.add_argument(
         "--dataset",
@@ -143,10 +149,17 @@ def main():
     if ARGS.compute_metrics is False:
         global progress_bar
         progress_bar = tqdm(total=len(dataset))
-        remove_files_in_dir(temp_results_dir)
+
+        if ARGS.clean_result_dir:
+            remove_files_in_dir(temp_results_dir)
 
         pool = Pool(ARGS.num_procs)
         for img_path in dataset:
+            img_folder, img_basename = os.path.split(os.path.abspath(img_path))
+            img_filename, img_extension = os.path.splitext(img_basename)
+            if os.path.exists(f"{temp_results_dir}/{img_filename}.npy"): 
+                update_progress_bar(None)
+                continue
             pool.apply_async(
                 mp_call_eval_single_img,
                 args=(exif_ckpt_path, img_path, temp_results_dir),
@@ -164,8 +177,6 @@ def main():
 
         detection_preds = []
         detection_truths = []
-        localization_preds = []
-        localization_ground_truths = []
         for img_path in tqdm(dataset):
             img_folder, img_basename = os.path.split(os.path.abspath(img_path))
             img_filename, img_extension = os.path.splitext(img_basename)
@@ -190,18 +201,14 @@ def main():
                 pred_mask = torch.tensor(pred_mask > 0.25).to(torch.uint8)
                 pred_mask = pred_mask / 1.0
 
-                localization_preds.append(pred_mask)
-                localization_ground_truths.append(gt_mask)
+                test_loc_f1.update(pred_mask, gt_mask)
+                test_loc_mcc.update(pred_mask, gt_mask)
 
             detection_preds.append(detection_pred)
             detection_truths.append(detection_label)
 
-        test_class_acc(torch.tensor(detection_preds), torch.tensor(detection_truths))
-        test_class_auc(torch.tensor(detection_preds), torch.tensor(detection_truths))
-
-        for pred_mask, gt_mask in zip(localization_preds, localization_ground_truths):
-            test_loc_f1(pred_mask, gt_mask)
-            test_loc_mcc(pred_mask, gt_mask)
+        test_class_acc.update(torch.tensor(detection_preds), torch.tensor(detection_truths))
+        test_class_auc.update(torch.tensor(detection_preds), torch.tensor(detection_truths))
 
         print("test_loc_f1", test_loc_f1.compute())
         print("test_loc_mcc", test_loc_mcc.compute())
