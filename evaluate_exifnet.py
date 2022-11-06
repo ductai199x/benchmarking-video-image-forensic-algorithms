@@ -188,12 +188,18 @@ def main():
                 detection_label = 0
 
             meanshift = np.load(f"{temp_results_dir}/{img_filename}.npy")
+            meanshift = np.nan_to_num(meanshift)
             detection_pred = meanshift.mean()
             if detection_label == 1:
                 # Load the ground-truth mask
-                gt_mask = to_tensor(Image.open(f"{img_folder}/{img_filename}.mask", mode="r")).squeeze().int()
+                gt_mask = to_tensor(Image.open(f"{img_folder}/{img_filename}.mask", mode="r"))
+                if len(gt_mask.shape) > 2:
+                    gt_mask = gt_mask[0]
                 if gt_mask.shape[0] != 1080:
                     gt_mask = crop(gt_mask, 0, 0, 1080, 1920)
+                
+                gt_mask[gt_mask > 0] = 1
+                gt_mask = gt_mask.int()
 
                 # Produce localization map from the meanshift heatmap
                 amplitude = meanshift.max() - meanshift.min()
@@ -201,8 +207,7 @@ def main():
                     pred_mask = (meanshift - meanshift.min()) / amplitude
                 else:
                     pred_mask = meanshift
-                pred_mask = torch.tensor(pred_mask > 0.25).to(torch.uint8)
-                pred_mask = pred_mask / 1.0
+                pred_mask = torch.tensor(pred_mask > 0.25).to(torch.float)
 
                 test_loc_f1.update(pred_mask, gt_mask)
                 test_loc_mcc.update(pred_mask, gt_mask)

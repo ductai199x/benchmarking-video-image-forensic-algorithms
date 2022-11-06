@@ -391,6 +391,7 @@ class Demo:
         res = self.bu.precomputed_analysis_vote_cls(num_fts=4096)
         # print('result shape', np.shape(res))
         ms = mean_shift(res.reshape((-1, res.shape[0] * res.shape[1])), res)
+        # print(ms)
 
         if np.mean(ms > 0.5) > 0.5:
             # majority of the image is above .5
@@ -436,7 +437,13 @@ class Demo:
                 )["out"]["responses"][0]
                 all_results.append(res)
 
-        return dbscan_consensus(all_results)
+        best_pred, lowest_spread = dbscan_consensus(all_results)
+
+        if np.mean(best_pred > 0.5) > 0.5:
+            # majority of the image is above .5
+            best_pred = 1 - best_pred
+        
+        return best_pred, lowest_spread
 
     def __call__(self, url, dense=False):
         """
