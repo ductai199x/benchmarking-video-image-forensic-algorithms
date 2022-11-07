@@ -34,7 +34,11 @@ DS_CHOICES = [
 
 exif_ckpt_path = "/media/nas2/trained_models_repository/exifnet_tf1/exif_final.ckpt"
 open_proc = lambda cmd_list: subprocess.Popen(
-    cmd_list, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, universal_newlines=True, bufsize=1
+    cmd_list, 
+    stdout=subprocess.DEVNULL, 
+    stderr=subprocess.DEVNULL, 
+    universal_newlines=True, 
+    bufsize=1,
 )
 to_tensor = ToTensor()
 is_shuffle = True

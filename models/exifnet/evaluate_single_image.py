@@ -43,14 +43,17 @@ exifnet = Exifnet(
     quality=1,
     num_per_dim=10,
 )
-# meanshift = exifnet.run(
-#     img,
-#     use_ncuts=False,
-#     blue_high=True,
-# )
-meanshift, _ = exifnet.run_vote(
-    img
-)
+try:
+    meanshift, _ = exifnet.run_vote(
+        img
+    )
+except:
+    meanshift = exifnet.run(
+        img,
+        use_ncuts=False,
+        blue_high=True,
+    )
+
 save_result_path = f"{temp_results_dir}/{img_filename}.npy"
 
 np.save(save_result_path, meanshift)
