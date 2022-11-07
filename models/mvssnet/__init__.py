@@ -1,82 +1,75 @@
 import lightning.pytorch as pl
 import torch
-from torchvision.transforms.functional import resize
+from torchvision.transforms.functional import resize, normalize
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
 
-import os
-import io
-import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
 
 from .model.mvss import get_mvss
-from .model.resfcn import ResFCN
-from .common.tools import inference_single
-from .common.utils import calculate_pixel_f1
+# from .common.tools import inference_single
 
 
-class MVSSNetWrapper(pl.LightningModule):
-    def __init__(self, model_type = 'mvssnet'):
+mvssnet_path = '/media/nas2/trained_models_repository/mvssnet_pytorch/mvssnet_casia.pt'
+resfcn_path = '/media/nas2/trained_models_repository/mvssnet_pytorch/resfcn_casia.pt'
+
+normalize_dict = {
+    "mean": [0.485, 0.456, 0.406],
+    "std": [0.229, 0.224, 0.225],
+}
+
+
+class MVSSNetImageEvalWrapper(pl.LightningModule):
+    def __init__(
+        self,
+        mvssnet_path,
+        resfcn_path,
+    ):
         super().__init__()
-        mvssnet_path = '/home/shengbang/benchmarking-video-image-forensic-algorithms/models/mvssnet/ckpt/mvssnet_casia.pt'
-        resfcn_path = '/home/shengbang/benchmarking-video-image-forensic-algorithms/models/mvssnet/ckpt/resfcn_casia.pt'
-        resize = 512
-        th = 0.5
+        
+        self.resize = (512, 512)
+        self.th = 0.5
         self.test_class_acc = Accuracy()
         self.test_class_auc = AUROC(num_classes=2, compute_on_step=False)
         self.test_loc_f1 = F1Score()
         self.test_loc_mcc = MatthewsCorrCoef(num_classes=2)
         
-        if model_type == 'mvssnet':
-            self.model = get_mvss(backbone='resnet50',
-                            pretrained_base=True,
-                            nclass=1,
-                            sobel=True,
-                            constrain=True,
-                            n_input=3,
-                            )
-            checkpoint = torch.load(mvssnet_path, map_location='cpu')
-        elif model_type == 'fcn': 
-            self.model = ResFCN()
-            checkpoint = torch.load(resfcn_path, map_location='cpu')
+        self.model = get_mvss(
+            backbone='resnet50',
+            pretrained_base=True,
+            nclass=1,
+            sobel=True,
+            constrain=True,
+            n_input=3,
+        )
+        checkpoint = torch.load(mvssnet_path, map_location='cpu')
 
         self.model.load_state_dict(checkpoint, strict=True)
-        self.model = self.model.to('cuda')
-        self.model.eval()
+        self.model = self.model.to(self.device).eval()
         
     def test_step(self, batch, batch_idx):
         x, y, m = batch
         B, C, H, W = x.shape
 
-        # initialize batch predictions:
-        detection_preds = []
-        localization_preds = []
+        x = resize(x, self.resize)
+        normalize(x, normalize_dict["mean"], normalize_dict["std"], inplace=True)
 
-        for image in x:
-            shape = image.shape
-            image = resize(image, (512, 512)).permute(1, 2, 0).cpu().numpy()
-            # shape should be 512, 512, 3
-            image = image[..., ::-1].astype(np.uint8)
-            predicted, score = inference_single(img=image, model=self.model, th=0)
-            mask_pred = cv2.resize(predicted, (W, H)) / 1.0
-            detection_preds.append(float(score))
-            localization_preds.append(torch.tensor(mask_pred))
-            # print(predicted.shape)
-            
-        # print(detection_preds, localization_preds)
-        self.test_class_acc(
-            torch.tensor(detection_preds).to(self.device), y.to(self.device)
+        _, pred_mask = self.model(x)
+        pred_mask = torch.sigmoid(pred_mask).detach()
+        if torch.isnan(pred_mask).any() or torch.isinf(pred_mask).any():
+            pred_labels = torch.zeros(B)
+        else:
+            pred_labels = pred_mask.flatten(1, -1).max(dim=1)[0]
+        pred_mask = resize(pred_mask, (H, W)).squeeze().float()
+
+        self.test_class_acc.update(
+            pred_labels.to(self.device), y.to(self.device)
         )
-        self.test_class_auc(
-            torch.tensor(detection_preds).to(self.device), y.to(self.device)
+        self.test_class_auc.update(
+            pred_labels.to(self.device), y.to(self.device)
         )
-        for i in range(B):
-            if y[i] == 0: continue
-            loc_pred = localization_preds[i].clone().detach().to(self.device)
-            true_mask = m[i].to(self.device)
-            self.test_loc_f1(loc_pred, true_mask)
-            self.test_loc_mcc(loc_pred, true_mask)    
+        self.test_loc_f1.update(pred_mask[y==1], m[y==1])
+        self.test_loc_mcc.update(pred_mask[y==1], m[y==1])
+                
             
     def on_test_epoch_end(self) -> None:
         self.log("test_loc_f1", self.test_loc_f1.compute())
@@ -100,5 +93,9 @@ class MVSSNetWrapper(pl.LightningModule):
         neg_preds = self.test_class_preds[neg_labels] == 0
         self.log("test_class_tpr", pos_preds.sum() / pos_labels.sum())
         self.log("test_class_tnr", neg_preds.sum() / neg_labels.sum())
-        
-MVSSNetWrapper = MVSSNetWrapper()
+
+
+MVSSNetImageEvalWrapper = MVSSNetImageEvalWrapper(
+    mvssnet_path=mvssnet_path,
+    resfcn_path=resfcn_path,
+)

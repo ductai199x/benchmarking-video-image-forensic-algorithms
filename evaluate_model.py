@@ -38,6 +38,7 @@ ARCH_CHOICES = [
     "fsg",
     "exif",
     "noiseprint",
+    "mvss",
 ]
 
 
@@ -58,6 +59,10 @@ def get_model(model_codename: str) -> LightningModule:
         from models.noiseprint import NoiseprintImageEvalPLWrapper as Noiseprint
 
         return Noiseprint
+    elif model_codename == "mvss":
+        from models.mvssnet import MVSSNetImageEvalWrapper as MVSSNet
+
+        return MVSSNet
     else:
         raise NotImplementedError
 
