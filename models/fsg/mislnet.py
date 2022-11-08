@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from pytorch_lightning.core.lightning import LightningModule
+from lightning.pytorch import LightningModule
 from torchmetrics import Accuracy, F1Score, AUROC
 
 

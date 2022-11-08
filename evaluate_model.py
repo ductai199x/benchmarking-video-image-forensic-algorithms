@@ -31,6 +31,7 @@ DS_CHOICES = [
     "video_invis_aug",
     "video_sham_adobe",
     "video_e2fgvi_davis",
+    "videomatting",
 ]
 
 ARCH_CHOICES = [
@@ -163,6 +164,16 @@ def get_dataset(ds_choice: str) -> DataLoader:
         )
         test_dl = DataLoader(
             E2fgviDavisDataset(img_files, resolution=(1080, 1920)),
+            batch_size=ARGS.batch_size,
+            num_workers=ARGS.num_workers,
+            shuffle=SHUFFLE,
+        )
+    elif ds_choice == "videomatting":
+        img_files = get_all_files(
+            "/media/nas2/Datasets/VideoMatting/data/dataset", suffix=".png"
+        )
+        test_dl = DataLoader(
+            VideoMattingDataset(img_files),
             batch_size=ARGS.batch_size,
             num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,

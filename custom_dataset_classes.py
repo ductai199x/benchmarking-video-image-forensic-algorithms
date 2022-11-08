@@ -215,7 +215,7 @@ class E2fgviDavisDataset(GenericImageDataset):
             img = Image.open(path, mode="r")
             img = self.to_tensor(img) * 255
             img = img.float()[0:3]
-            if img.shape[1] != self.resolution[0]:
+            if img.shape[1] != self.resolution[0] or img.shape[2] != self.resolution[1]:
                 img = resize(img, self.resolution)
             return img
         except:
@@ -224,7 +224,40 @@ class E2fgviDavisDataset(GenericImageDataset):
 
     def _get_mask(self, folder, filename):
         mask = self.to_tensor(Image.open(f"{folder}/{filename}.mask", mode="r"))
-        if mask.shape[1] != self.resolution[0]:
+        if mask.shape[1] != self.resolution[0] or mask.shape[2] != self.resolution[1]:
+            mask = resize(mask, self.resolution)
+
+        mask = mask.squeeze(0)
+        mask[mask > 0] = 1
+
+        return mask.to(torch.uint8)
+
+class VideoMattingDataset(GenericImageDataset):
+    def __init__(
+        self,
+        img_paths,
+        resolution=(1080, 1920),
+        mask_available=True,
+        return_labels=True,
+    ):
+        super().__init__(img_paths, mask_available, return_labels)
+        self.resolution = resolution
+
+    def _get_input(self, path):
+        try:
+            img = Image.open(path, mode="r")
+            img = self.to_tensor(img) * 255
+            img = img.float()[0:3]
+            if img.shape[1] != self.resolution[0] or img.shape[2] != self.resolution[1]:
+                img = resize(img, self.resolution)
+            return img
+        except:
+            print(f"can't open {path}")
+            return torch.zeros(3, self.resolution[0], self.resolution[1])
+
+    def _get_mask(self, folder, filename):
+        mask = self.to_tensor(Image.open(f"{folder}/{filename}.mask", mode="r"))
+        if mask.shape[1] != self.resolution[0] or mask.shape[2] != self.resolution[1]:
             mask = resize(mask, self.resolution)
 
         mask = mask.squeeze(0)

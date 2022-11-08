@@ -13,13 +13,13 @@ for physical_device in physical_devices:
 
 
 import torch
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import (
+from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import (
     LearningRateMonitor,
     ModelCheckpoint,
     TQDMProgressBar,
 )
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader, IterableDataset
 
 from helper import get_all_files

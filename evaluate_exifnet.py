@@ -30,6 +30,7 @@ DS_CHOICES = [
     "video_invis_aug",
     "video_sham_adobe",
     "video_e2fgvi_davis",
+    "videomatting",
 ]
 
 exif_ckpt_path = "/media/nas2/trained_models_repository/exifnet_tf1/exif_final.ckpt"
@@ -77,6 +78,10 @@ def get_dataset(ds_choice: str) -> DataLoader:
         img_files = get_all_files(
             f"/media/nas2/Tai/13-e2fgvi-video-inpainting/ds_{resolution[1]}x{resolution[0]}",
             suffix=(".png", ".jpg"),
+        )
+    elif ds_choice == "videomatting":
+        img_files = get_all_files(
+            "/media/nas2/Datasets/VideoMatting/data/dataset", suffix=".png"
         )
     else:
         raise (NotImplementedError)

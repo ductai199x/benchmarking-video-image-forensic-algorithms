@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from torchmetrics import AUROC, Accuracy, F1Score
 
 from .mislnet import MISLNet
