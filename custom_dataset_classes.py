@@ -11,10 +11,17 @@ from helper import get_all_files
 
 
 class GenericImageDataset(Dataset):
-    def __init__(self, img_paths, mask_available=True, return_labels=True):
+    def __init__(
+        self, 
+        img_paths, 
+        mask_available=True, 
+        return_labels=True,
+        return_filepath=False,
+    ):
         self.img_paths = img_paths
         self.mask_available = mask_available
         self.return_labels = return_labels
+        self.return_filepath = return_filepath
         self.to_tensor = ToTensor()
 
     def __len__(self):
@@ -42,9 +49,7 @@ class GenericImageDataset(Dataset):
             return 1
 
     def _get_mask(self, folder, filename):
-        mask = self.to_tensor(
-            Image.open(f"{folder}/{filename}.mask", mode="r")
-        ).squeeze()
+        mask = self.to_tensor(Image.open(f"{folder}/{filename}.mask", mode="r")).squeeze()
         return mask.int()
 
     def __getitem__(self, index):
@@ -65,6 +70,8 @@ class GenericImageDataset(Dataset):
             else:
                 mask = torch.zeros(1080, 1920).to(torch.uint8)
             batch.append(mask)
+        if self.return_filepath:
+            batch.append(path)
 
         return batch
 
@@ -169,45 +176,22 @@ class VideoShamAdobeDataset(GenericImageDataset):
             return torch.zeros(3, 1080, 1920)
 
     def _get_mask(self, folder, filename):
-        mask = self.to_tensor(
-            Image.open(f"{folder}/{filename}.mask", mode="r")
-        ).squeeze()
+        mask = self.to_tensor(Image.open(f"{folder}/{filename}.mask", mode="r")).squeeze()
         if mask.shape[0] != 1080:
             mask = crop(mask, 0, 0, 1080, 1920)
         return mask.to(torch.uint8)
 
-    def __getitem__(self, index):
-        path = self.img_paths[index]
-        folder, filename, extension = self._disect_path(path)
-        img = self._get_input(path)
-
-        label = self._get_label(path)
-
-        if not (self.return_labels or self.mask_available):
-            return img
-
-        batch = [img]
-        if self.return_labels:
-            batch.append(label)
-        if self.mask_available:
-            if label:
-                mask = self._get_mask(folder, filename)
-            else:
-                mask = torch.zeros(1080, 1920).to(torch.uint8)
-            batch.append(mask)
-
-        return batch
-
 
 class E2fgviDavisDataset(GenericImageDataset):
     def __init__(
-        self,
-        img_paths,
-        resolution=(1080, 1920),
-        mask_available=True,
+        self, 
+        img_paths, 
+        resolution=(1080, 1920), 
+        mask_available=True, 
         return_labels=True,
+        return_filepath=False,
     ):
-        super().__init__(img_paths, mask_available, return_labels)
+        super().__init__(img_paths, mask_available, return_labels, return_filepath)
         self.resolution = resolution
 
     def _get_input(self, path):
@@ -215,7 +199,7 @@ class E2fgviDavisDataset(GenericImageDataset):
             img = Image.open(path, mode="r")
             img = self.to_tensor(img) * 255
             img = img.float()[0:3]
-            if img.shape[1] != self.resolution[0] or img.shape[2] != self.resolution[1]:
+            if img.shape[1] != self.resolution[0]:
                 img = resize(img, self.resolution)
             return img
         except:
@@ -224,7 +208,7 @@ class E2fgviDavisDataset(GenericImageDataset):
 
     def _get_mask(self, folder, filename):
         mask = self.to_tensor(Image.open(f"{folder}/{filename}.mask", mode="r"))
-        if mask.shape[1] != self.resolution[0] or mask.shape[2] != self.resolution[1]:
+        if mask.shape[1] != self.resolution[0]:
             mask = resize(mask, self.resolution)
 
         mask = mask.squeeze(0)
@@ -232,15 +216,17 @@ class E2fgviDavisDataset(GenericImageDataset):
 
         return mask.to(torch.uint8)
 
+
 class VideoMattingDataset(GenericImageDataset):
     def __init__(
-        self,
-        img_paths,
-        resolution=(1080, 1920),
-        mask_available=True,
+        self, 
+        img_paths, 
+        resolution=(1080, 1920), 
+        mask_available=True, 
         return_labels=True,
+        return_filepath=False,
     ):
-        super().__init__(img_paths, mask_available, return_labels)
+        super().__init__(img_paths, mask_available, return_labels, return_filepath)
         self.resolution = resolution
 
     def _get_input(self, path):

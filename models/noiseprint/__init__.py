@@ -3,6 +3,7 @@ import tensorflow as tf
 import torch
 from torchvision.transforms.functional import rgb_to_grayscale, resize
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
+from torchmetrics.functional import f1_score, matthews_corrcoef
 
 physical_devices = tf.config.list_physical_devices("GPU")
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -31,35 +32,29 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
 
         self.test_class_acc = Accuracy()
         self.test_class_auc = AUROC(num_classes=2, compute_on_step=False)
-        self.test_loc_f1 = F1Score()
-        self.test_loc_mcc = MatthewsCorrCoef(num_classes=2)
+        self.test_loc_f1 = []
+        self.test_loc_mcc = []
 
         self.model_name = model_name
         self.chkpt_folder = chkpt_folder
         self.chkpt_fname = self.chkpt_folder % (self.model_name, self.QF)
 
         tf.compat.v1.reset_default_graph()
-        self.x_data = tf.compat.v1.placeholder(
-            tf.float32, [1, None, None, 1], name="x_data"
-        )
+        self.x_data = tf.compat.v1.placeholder(tf.float32, [1, None, None, 1], name="x_data")
         self.net = FullConvNet(self.x_data, 0.9, tf.constant(False), num_levels=17)
         self.saver = tf.compat.v1.train.Saver(self.net.variables_list)
 
         self.sess = tf.compat.v1.Session()
         self.saver.restore(self.sess, self.chkpt_fname)
 
-    def test_step(self, batch, batch_idx):
-        x, y, m = batch
+    def forward(self, x):
         B, C, H, W = x.shape
-
         # initialize batch predictions:
         detection_preds = []
-        localization_preds = []
+        localization_masks = []
 
         for image in x:
-            image = (
-                rgb_to_grayscale(image).float().permute(1, 2, 0).squeeze(-1) / 255.0
-            ).cpu()
+            image = (rgb_to_grayscale(image).float().permute(1, 2, 0).squeeze(-1) / 255.0).cpu()
             residual = genNoiseprint(
                 self.sess,
                 self.net,
@@ -70,52 +65,65 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
             loc_pixel_map, _, _, _, _, _ = noiseprint_blind_post(residual, image)
             if loc_pixel_map is None:
                 detection_preds.append(0.0)
-                localization_preds.append(torch.zeros(H, W))
+                localization_masks.append(torch.zeros(H, W))
             else:
                 loc_pixel_map = torch.tensor(loc_pixel_map).detach().nan_to_num(0.0)
                 amplitude = loc_pixel_map.max() - loc_pixel_map.min()
                 if amplitude > 1e-10:
-                    normalized_loc_map = (
-                        loc_pixel_map - loc_pixel_map.min()
-                    ) / amplitude
+                    normalized_loc_map = (loc_pixel_map - loc_pixel_map.min()) / amplitude
                 else:
                     normalized_loc_map = loc_pixel_map - loc_pixel_map.min()
-                normalized_loc_map = resize(
-                    normalized_loc_map.unsqueeze(0), [H, W]
-                ).squeeze()
+                normalized_loc_map = resize(normalized_loc_map.unsqueeze(0), [H, W]).squeeze()
+
+                # normalized_loc_map[normalized_loc_map >= 0.10] = 1.0
+                # normalized_loc_map[normalized_loc_map < 0.10] = 0.0
 
                 detection_preds.append(loc_pixel_map.mean())
-                localization_preds.append(normalized_loc_map)
+                localization_masks.append(normalized_loc_map)
 
-        self.test_class_acc(
-            torch.tensor(detection_preds).to(self.device), y.to(self.device)
-        )
-        self.test_class_auc(
-            torch.tensor(detection_preds).to(self.device), y.to(self.device)
-        )
+        localization_masks = torch.concat([torch.tensor(l).unsqueeze(0) for l in localization_masks], dim=0)
+        return torch.tensor(detection_preds), torch.tensor(localization_masks)
+
+    def test_step(self, batch, batch_idx):
+        x, y, m = batch
+        B, C, H, W = x.shape
+
+        detection_preds, localization_masks = self(x)
+
+        self.test_class_acc(detection_preds.to(self.device), y.to(self.device))
+        self.test_class_auc(detection_preds.to(self.device), y.to(self.device))
         for i in range(B):
             if y[i] == 0: continue
-            loc_pred = localization_preds[i].clone().detach().to(self.device)
-            true_mask = m[i].to(self.device)
-            self.test_loc_f1(loc_pred, true_mask)
-            self.test_loc_mcc(loc_pred, true_mask)
+            pp = localization_masks[i].to(self.device)
+            gt = m[i].to(self.device)
+
+            pp_neg = 1 - pp
+            f1_pos = f1_score(pp, gt)
+            f1_neg = f1_score(pp_neg, gt)
+            if f1_neg > f1_pos:
+                self.test_loc_f1.append(f1_neg)
+            else:
+                self.test_loc_f1.append(f1_pos)
+            
+            mcc_pos = matthews_corrcoef(pp, gt, num_classes=2)
+            mcc_neg = matthews_corrcoef(pp_neg, gt, num_classes=2)
+            if mcc_neg > mcc_pos:
+                self.test_loc_mcc.append(mcc_neg)
+            else:
+                self.test_loc_mcc.append(mcc_pos)
 
     def on_test_epoch_end(self) -> None:
         self.sess.close()
-        self.log("test_loc_f1", self.test_loc_f1.compute())
-        self.log("test_loc_mcc", self.test_loc_mcc.compute())
+        self.log("test_loc_f1", torch.nan_to_num(torch.tensor(self.test_loc_f1)).mean())
+        self.log("test_loc_mcc", torch.nan_to_num(torch.tensor(self.test_loc_mcc)).mean())
         self.log("test_class_auc", self.test_class_auc.compute())
         self.log("test_class_acc", self.test_class_acc.compute())
 
-        self.test_class_probs = torch.concat(
-            [preds_batch for preds_batch in self.test_class_auc.preds]
-        )
+        self.test_class_probs = torch.concat([preds_batch for preds_batch in self.test_class_auc.preds])
         self.test_class_preds = torch.concat(
             [(preds_batch > 0.5).int() for preds_batch in self.test_class_auc.preds]
         )
-        self.test_class_truths = torch.concat(
-            [truths_batch for truths_batch in self.test_class_auc.target]
-        )
+        self.test_class_truths = torch.concat([truths_batch for truths_batch in self.test_class_auc.target])
 
         pos_labels = self.test_class_truths == 1
         pos_preds = self.test_class_preds[pos_labels] == 1

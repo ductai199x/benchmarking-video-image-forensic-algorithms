@@ -2,8 +2,7 @@ import lightning.pytorch as pl
 import torch
 from torchvision.transforms.functional import resize, normalize
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
-
-import numpy as np
+from torchmetrics.functional import f1_score, matthews_corrcoef
 
 from .model.mvss import get_mvss
 # from .common.tools import inference_single
@@ -30,8 +29,8 @@ class MVSSNetImageEvalWrapper(pl.LightningModule):
         self.th = 0.5
         self.test_class_acc = Accuracy()
         self.test_class_auc = AUROC(num_classes=2, compute_on_step=False)
-        self.test_loc_f1 = F1Score()
-        self.test_loc_mcc = MatthewsCorrCoef(num_classes=2)
+        self.test_loc_f1 = []
+        self.test_loc_mcc = []
         
         self.model = get_mvss(
             backbone='resnet50',
@@ -45,13 +44,13 @@ class MVSSNetImageEvalWrapper(pl.LightningModule):
 
         self.model.load_state_dict(checkpoint, strict=True)
         self.model = self.model.to(self.device).eval()
-        
-    def test_step(self, batch, batch_idx):
-        x, y, m = batch
+
+    def forward(self, x):
         B, C, H, W = x.shape
 
+        x = x / 255.0
         x = resize(x, self.resize)
-        normalize(x, normalize_dict["mean"], normalize_dict["std"], inplace=True)
+        x = normalize(x, normalize_dict["mean"], normalize_dict["std"])
 
         _, pred_mask = self.model(x)
         pred_mask = torch.sigmoid(pred_mask).detach()
@@ -61,19 +60,40 @@ class MVSSNetImageEvalWrapper(pl.LightningModule):
             pred_labels = pred_mask.flatten(1, -1).max(dim=1)[0]
         pred_mask = resize(pred_mask, (H, W)).squeeze().float()
 
+        return pred_labels, pred_mask
+        
+    def test_step(self, batch, batch_idx):
+        x, y, m = batch
+        B, C, H, W = x.shape
+
+        pred_labels, pred_mask = self(x)
+
         self.test_class_acc.update(
             pred_labels.to(self.device), y.to(self.device)
         )
         self.test_class_auc.update(
             pred_labels.to(self.device), y.to(self.device)
         )
-        self.test_loc_f1.update(pred_mask[y==1], m[y==1])
-        self.test_loc_mcc.update(pred_mask[y==1], m[y==1])
+        for pp, gt in zip(pred_mask[y==1], m[y==1]):
+            # pp_neg = 1 - pp
+            f1_pos = f1_score(pp, gt)
+            # f1_neg = f1_score(pp_neg, gt)
+            # if f1_neg > f1_pos:
+            #     self.test_loc_f1.append(f1_neg)
+            # else:
+            self.test_loc_f1.append(f1_pos)
+            
+            mcc_pos = matthews_corrcoef(pp, gt, num_classes=2)
+            # mcc_neg = matthews_corrcoef(pp_neg, gt, num_classes=2)
+            # if mcc_neg > mcc_pos:
+            #     self.test_loc_mcc.append(mcc_neg)
+            # else:
+            self.test_loc_mcc.append(mcc_pos)
                 
             
     def on_test_epoch_end(self) -> None:
-        self.log("test_loc_f1", self.test_loc_f1.compute())
-        self.log("test_loc_mcc", self.test_loc_mcc.compute())
+        self.log("test_loc_f1", torch.nan_to_num(torch.tensor(self.test_loc_f1)).mean())
+        self.log("test_loc_mcc", torch.nan_to_num(torch.tensor(self.test_loc_mcc)).mean())
         self.log("test_class_auc", self.test_class_auc.compute())
         self.log("test_class_acc", self.test_class_acc.compute())
 

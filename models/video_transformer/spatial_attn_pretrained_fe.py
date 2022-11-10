@@ -6,6 +6,7 @@ from lightning.pytorch import LightningModule
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
+from torchmetrics.functional import f1_score, matthews_corrcoef
 
 from .long_dist_attn import LongDistanceAttention
 from .mislnet import MISLnetPLWrapper
@@ -164,8 +165,8 @@ class SpatialAttnPretrainedFEPLWrapper(LightningModule):
         self.val_class_acc = Accuracy()
         self.test_class_acc = Accuracy()
         self.test_class_auc = AUROC(num_classes=2, compute_on_step=False)
-        self.test_loc_f1 = F1Score()
-        self.test_loc_mcc = MatthewsCorrCoef(num_classes=2)
+        self.test_loc_f1 = []
+        self.test_loc_mcc = []
 
         self.img_size = config["img_size"]
         self.patch_size = config["patch_size"]
@@ -303,16 +304,29 @@ class SpatialAttnPretrainedFEPLWrapper(LightningModule):
                 m_h, m_w = pixel_preds.shape[1], pixel_preds.shape[2]
                 true_mask = m[y == 1, :m_h, :m_w].to(torch.uint8)
 
-                self.test_loc_f1(pixel_preds.to(self.device), true_mask.to(self.device))
-                self.test_loc_mcc(
-                    pixel_preds.to(self.device), true_mask.to(self.device)
-                )
+                pixel_preds, true_mask = pixel_preds.to(self.device), true_mask.to(self.device)
+                for pp, gt in zip(pixel_preds, true_mask):
+                    pp_neg = 1 - pp
+                    f1_pos = f1_score(pp, gt)
+                    f1_neg = f1_score(pp_neg, gt)
+                    if f1_neg > f1_pos:
+                        self.test_loc_f1.append(f1_neg)
+                    else:
+                        self.test_loc_f1.append(f1_pos)
+                    
+                    mcc_pos = matthews_corrcoef(pp, gt, num_classes=2)
+                    mcc_neg = matthews_corrcoef(pp_neg, gt, num_classes=2)
+                    if mcc_neg > mcc_pos:
+                        self.test_loc_mcc.append(mcc_neg)
+                    else:
+                        self.test_loc_mcc.append(mcc_pos)
+                    
             # only compute auc at the end
             self.test_class_auc(class_logits, y)
 
     def on_test_epoch_end(self) -> None:
-        self.log("test_loc_f1", self.test_loc_f1.compute())
-        self.log("test_loc_mcc", self.test_loc_mcc.compute())
+        self.log("test_loc_f1", torch.nan_to_num(torch.tensor(self.test_loc_f1)).mean())
+        self.log("test_loc_mcc", torch.nan_to_num(torch.tensor(self.test_loc_mcc)).mean())
         self.log("test_class_auc", self.test_class_auc.compute())
         self.log("test_class_acc", self.test_class_acc.compute())
 

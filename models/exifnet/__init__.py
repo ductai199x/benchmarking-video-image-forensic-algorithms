@@ -2,6 +2,7 @@ import lightning.pytorch as pl
 import tensorflow as tf
 import torch
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
+from torchmetrics.functional import f1_score, matthews_corrcoef
 
 from .demo import Demo as Exifnet
 
@@ -31,16 +32,15 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
 
         self.test_class_acc = Accuracy()
         self.test_class_auc = AUROC(num_classes=2, compute_on_step=False)
-        self.test_loc_f1 = F1Score()
-        self.test_loc_mcc = MatthewsCorrCoef(num_classes=2)
+        self.test_loc_f1 = []
+        self.test_loc_mcc = []
 
-    def test_step(self, batch, batch_idx):
-        x, y, m = batch
+    def forward(self, x):
         B, C, H, W = x.shape
 
         # initialize batch predictions:
         detection_preds = []
-        localization_preds = []
+        localization_masks = []
 
         for image in x:
             meanshift = self.model.run(
@@ -59,24 +59,46 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
             loc_pixel_map = loc_pixel_map / 1.0
 
             detection_preds.append(detection_pred)
-            localization_preds.append(loc_pixel_map)
+            localization_masks.append(loc_pixel_map)
+        
+        localization_masks = torch.concat([torch.tensor(l).unsqueeze(0) for l in localization_masks], dim=0)
+        return torch.tensor(detection_preds), torch.tensor(localization_masks)
+
+    def test_step(self, batch, batch_idx):
+        x, y, m = batch
+        B, C, H, W = x.shape
+
+        detection_preds, localization_masks = self(x)
 
         self.test_class_acc(
-            torch.tensor(detection_preds).to(self.device), y.to(self.device)
+            detection_preds.to(self.device), y.to(self.device)
         )
         self.test_class_auc(
-            torch.tensor(detection_preds).to(self.device), y.to(self.device)
+            detection_preds.to(self.device), y.to(self.device)
         )
         for i in range(B):
             if y[i] == 0: continue
-            loc_pred = localization_preds[i].clone().detach().to(self.device)
-            true_mask = m[i].to(self.device)
-            self.test_loc_f1(loc_pred, true_mask)
-            self.test_loc_mcc(loc_pred, true_mask)
+            pp = localization_masks[i].to(self.device)
+            gt = m[i].to(self.device)
+
+            pp_neg = 1 - pp
+            f1_pos = f1_score(pp, gt)
+            f1_neg = f1_score(pp_neg, gt)
+            if f1_neg > f1_pos:
+                self.test_loc_f1.append(f1_neg)
+            else:
+                self.test_loc_f1.append(f1_pos)
+            
+            mcc_pos = matthews_corrcoef(pp, gt, num_classes=2)
+            mcc_neg = matthews_corrcoef(pp_neg, gt, num_classes=2)
+            if mcc_neg > mcc_pos:
+                self.test_loc_mcc.append(mcc_neg)
+            else:
+                self.test_loc_mcc.append(mcc_pos)
 
     def on_test_epoch_end(self) -> None:
-        self.log("test_loc_f1", self.test_loc_f1.compute())
-        self.log("test_loc_mcc", self.test_loc_mcc.compute())
+        self.log("test_loc_f1", torch.nan_to_num(torch.tensor(self.test_loc_f1)).mean())
+        self.log("test_loc_mcc", torch.nan_to_num(torch.tensor(self.test_loc_mcc)).mean())
         self.log("test_class_auc", self.test_class_auc.compute())
         self.log("test_class_acc", self.test_class_acc.compute())
 
