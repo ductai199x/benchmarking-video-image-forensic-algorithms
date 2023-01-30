@@ -3,7 +3,6 @@ from typing import *
 from scipy.ndimage.filters import gaussian_filter
 from torchvision.transforms.functional import resize
 
-
 class PatchPredictions:
     def __init__(
         self,

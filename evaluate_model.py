@@ -32,6 +32,7 @@ DS_CHOICES = [
     "video_sham_adobe",
     "video_e2fgvi_davis",
     "videomatting",
+    "deepfake",
 ]
 
 ARCH_CHOICES = [
@@ -174,6 +175,16 @@ def get_dataset(ds_choice: str) -> DataLoader:
         )
         test_dl = DataLoader(
             VideoMattingDataset(img_files),
+            batch_size=ARGS.batch_size,
+            num_workers=ARGS.num_workers,
+            shuffle=SHUFFLE,
+        )
+    elif ds_choice == "deepfake":
+        img_files = get_all_files(
+            "/media/nas2/deepfakes/cvpr/dataset", suffix=".png"
+        )
+        test_dl = DataLoader(
+            GenericImageDataset(img_files),
             batch_size=ARGS.batch_size,
             num_workers=ARGS.num_workers,
             shuffle=SHUFFLE,

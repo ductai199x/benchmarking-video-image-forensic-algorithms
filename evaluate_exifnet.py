@@ -12,6 +12,8 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader
 from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
+from torchmetrics.functional import f1_score, matthews_corrcoef
+
 from torchvision.transforms import ToTensor
 from torchvision.transforms.functional import crop, pad, resize
 from tqdm.auto import tqdm
@@ -31,6 +33,7 @@ DS_CHOICES = [
     "video_sham_adobe",
     "video_e2fgvi_davis",
     "videomatting",
+    "deepfake",
 ]
 
 exif_ckpt_path = "/media/nas2/trained_models_repository/exifnet_tf1/exif_final.ckpt"
@@ -82,6 +85,10 @@ def get_dataset(ds_choice: str) -> DataLoader:
     elif ds_choice == "videomatting":
         img_files = get_all_files(
             "/media/nas2/Datasets/VideoMatting/data/dataset", suffix=".png"
+        )
+    elif ds_choice == "deepfake":
+        img_files = get_all_files(
+            "/media/nas2/deepfakes/cvpr/dataset", suffix=".png"
         )
     else:
         raise (NotImplementedError)
@@ -182,8 +189,8 @@ def main():
         # initialize torchmetrics objects
         test_class_acc = Accuracy()
         test_class_auc = AUROC(num_classes=2, compute_on_step=False)
-        test_loc_f1 = F1Score()
-        test_loc_mcc = MatthewsCorrCoef(num_classes=2)
+        test_loc_f1 = []
+        test_loc_mcc = []
 
         detection_preds = []
         detection_truths = []
@@ -218,8 +225,23 @@ def main():
                     pred_mask = meanshift
                 pred_mask = torch.tensor(pred_mask > 0.25).to(torch.float)
 
-                test_loc_f1.update(pred_mask, gt_mask)
-                test_loc_mcc.update(pred_mask, gt_mask)
+                pp = pred_mask
+                gt = gt_mask
+
+                pp_neg = 1 - pp
+                f1_pos = f1_score(pp, gt)
+                f1_neg = f1_score(pp_neg, gt)
+                if f1_neg > f1_pos:
+                    test_loc_f1.append(f1_neg)
+                else:
+                    test_loc_f1.append(f1_pos)
+                
+                mcc_pos = matthews_corrcoef(pp, gt, num_classes=2)
+                mcc_neg = matthews_corrcoef(pp_neg, gt, num_classes=2)
+                if mcc_neg > mcc_pos:
+                    test_loc_mcc.append(mcc_neg)
+                else:
+                    test_loc_mcc.append(mcc_pos)
 
             detection_preds.append(detection_pred)
             detection_truths.append(detection_label)
@@ -227,8 +249,8 @@ def main():
         test_class_acc.update(torch.tensor(detection_preds), torch.tensor(detection_truths))
         test_class_auc.update(torch.tensor(detection_preds), torch.tensor(detection_truths))
 
-        print("test_loc_f1", test_loc_f1.compute())
-        print("test_loc_mcc", test_loc_mcc.compute())
+        print("test_loc_f1", torch.nan_to_num(torch.tensor(test_loc_f1)).mean())
+        print("test_loc_mcc", torch.nan_to_num(torch.tensor(test_loc_mcc)).mean())
         print("test_class_auc", test_class_auc.compute())
         print("test_class_acc", test_class_acc.compute())
 
