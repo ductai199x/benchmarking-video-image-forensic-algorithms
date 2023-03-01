@@ -1,7 +1,7 @@
 import lightning.pytorch as pl
 import torch
-from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
-from torchmetrics.functional import f1_score, matthews_corrcoef
+from torchmetrics.classification import BinaryAUROC as AUROC, BinaryAccuracy as Accuracy
+from torchmetrics.functional.classification import binary_f1_score as f1_score, binary_matthews_corrcoef as matthews_corrcoef
 
 from .fsg import FSG
 from .localization import PatchLocalization, pixel_loc_from_patch_pred
@@ -69,8 +69,8 @@ class FSGWholeImageEvalPLWrapper(pl.LightningModule):
             patches_sim_scores.append(scores)
         patches_sim_scores = torch.vstack(patches_sim_scores)
         return patches_sim_scores
-
-    def forward(self, x):
+    
+    def get_batched_patches(self, x):
         B, C, H, W = x.shape
         # split images into batches of patches: B x C x H x W -> B x (NumPatchHeight x NumPatchWidth) x C x PatchSize x PatchSize
         batched_patches = (
@@ -81,6 +81,11 @@ class FSGWholeImageEvalPLWrapper(pl.LightningModule):
         batched_patches = batched_patches.contiguous().view(
             B, -1, C, self.patch_size, self.patch_size
         )
+        return batched_patches
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        batched_patches = self.get_batched_patches(x)
         B, P, C, P_H, P_W = batched_patches.shape
 
         # get the (x, y) coordinates of the top left of each patch in the image

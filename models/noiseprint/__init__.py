@@ -2,8 +2,8 @@ import lightning.pytorch as pl
 import tensorflow as tf
 import torch
 from torchvision.transforms.functional import rgb_to_grayscale, resize
-from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
-from torchmetrics.functional import f1_score, matthews_corrcoef
+from torchmetrics.classification import BinaryAUROC as AUROC, BinaryAccuracy as Accuracy
+from torchmetrics.functional.classification import binary_f1_score as f1_score, binary_matthews_corrcoef as matthews_corrcoef
 
 physical_devices = tf.config.list_physical_devices("GPU")
 tf.config.experimental.set_memory_growth(physical_devices[0], True)

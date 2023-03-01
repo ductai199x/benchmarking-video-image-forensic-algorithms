@@ -5,8 +5,8 @@ import torchvision
 from lightning.pytorch import LightningModule
 from torch import nn
 from torch.nn import functional as F
-from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
-from torchmetrics.functional import f1_score, matthews_corrcoef
+from torchmetrics.classification import BinaryAUROC as AUROC, BinaryAccuracy as Accuracy
+from torchmetrics.functional.classification import binary_f1_score as f1_score, binary_matthews_corrcoef as matthews_corrcoef
 
 from .long_dist_attn import LongDistanceAttention
 from .mislnet import MISLnetPLWrapper
