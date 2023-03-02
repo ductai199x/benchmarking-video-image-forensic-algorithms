@@ -315,6 +315,32 @@ class MVSSNet(ResNet50):
         else:
             self.head = _DAHead(2048, self.num_class, aux, **kwargs)
 
+    def get_features(self, x):
+        size = x.size()[2:]
+        input_ = x.clone()
+        feature_map, _ = self.base_forward(input_)
+        c1, c2, c3, c4 = feature_map
+
+        if self.sobel:
+            res1 = self.erb_db_1(run_sobel(self.sobel_x1, self.sobel_y1, c1))
+            res1 = self.erb_trans_1(res1 + self.upsample(self.erb_db_2(run_sobel(self.sobel_x2, self.sobel_y2, c2))))
+            res1 = self.erb_trans_2(res1 + self.upsample_4(self.erb_db_3(run_sobel(self.sobel_x3, self.sobel_y3, c3))))
+            res1 = self.erb_trans_3(res1 + self.upsample_4(self.erb_db_4(run_sobel(self.sobel_x4, self.sobel_y4, c4))), relu=False)
+
+        else:
+            res1 = self.erb_db_1(c1)
+            res1 = self.erb_trans_1(res1 + self.upsample(self.erb_db_2(c2)))
+            res1 = self.erb_trans_2(res1 + self.upsample_4(self.erb_db_3(c3)))
+            res1 = self.erb_trans_3(res1 + self.upsample_4(self.erb_db_4(c4)), relu=False)
+
+        if self.constrain:
+            x = rgb2gray(x)
+            x = self.constrain_conv(x)
+            constrain_features, _ = self.noise_extractor.base_forward(x)
+            constrain_feature = constrain_features[-1]
+        
+        return c4, constrain_feature
+
     def forward(self, x):
         size = x.size()[2:]
         input_ = x.clone()

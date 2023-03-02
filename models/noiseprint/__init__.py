@@ -12,6 +12,7 @@ tf.compat.v1.disable_eager_execution()
 from .network import FullConvNet
 from .noiseprint import genNoiseprint
 from .noiseprint_blind import noiseprint_blind_post
+from .post_em import getSpamFromNoiseprint
 
 
 QF = 101
@@ -46,6 +47,18 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
 
         self.sess = tf.compat.v1.Session()
         self.saver.restore(self.sess, self.chkpt_fname)
+
+    def get_features(self, image):
+        image = (rgb_to_grayscale(image).float().permute(1, 2, 0).squeeze(-1) / 255.0).cpu()
+        residual = genNoiseprint(
+            self.sess,
+            self.net,
+            self.x_data,
+            image,
+            self.QF,
+        )
+        spam = getSpamFromNoiseprint(residual, image)
+        return spam
 
     def forward(self, x):
         B, C, H, W = x.shape

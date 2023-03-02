@@ -385,6 +385,12 @@ class Demo:
             num_per_dim=num_per_dim,
         )
 
+    def get_features(self, im):
+        # run for every new image
+        self.bu.reset_image(im)
+        res = self.bu.precomputed_analysis_vote_cls(num_fts=4096)
+        return res
+
     def run(self, im, blue_high=False, use_ncuts=False):
         # run for every new image
         self.bu.reset_image(im)

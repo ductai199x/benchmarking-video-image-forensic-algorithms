@@ -45,6 +45,15 @@ class MVSSNetImageEvalWrapper(pl.LightningModule):
         self.model.load_state_dict(checkpoint, strict=True)
         self.model = self.model.to(self.device).eval()
 
+    def get_features(self, x):
+        B, C, H, W = x.shape
+
+        x = x / 255.0
+        x = resize(x, self.resize)
+        x = normalize(x, normalize_dict["mean"], normalize_dict["std"])
+
+        return self.model.get_features(x)
+
     def forward(self, x):
         B, C, H, W = x.shape
 
