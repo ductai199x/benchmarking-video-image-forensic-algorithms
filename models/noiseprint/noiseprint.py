@@ -54,7 +54,7 @@ def genNoiseprint(sess, net, x_data, img, QF=101):
                     index1 : min(index1 + slide, res.shape[1]),
                 ] = resB
     else:
-        print(" %dx%d small %3d" % (img.shape[0], img.shape[1], QF))
+        # print(" %dx%d small %3d" % (img.shape[0], img.shape[1], QF))
         res = sess.run(
             net.output, feed_dict={x_data: img[np.newaxis, :, :, np.newaxis]}
         )

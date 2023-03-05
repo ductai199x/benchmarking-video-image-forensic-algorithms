@@ -57,8 +57,8 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
             image,
             self.QF,
         )
-        spam = getSpamFromNoiseprint(residual, image)
-        return spam
+        # spam = getSpamFromNoiseprint(residual, image)
+        return residual
 
     def forward(self, x):
         B, C, H, W = x.shape
