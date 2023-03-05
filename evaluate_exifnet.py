@@ -11,30 +11,41 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader
-from torchmetrics import AUROC, Accuracy, F1Score, MatthewsCorrCoef
-from torchmetrics.functional import f1_score, matthews_corrcoef
+from torchmetrics.classification import BinaryAUROC as AUROC, BinaryAccuracy as Accuracy
+from torchmetrics.functional.classification import binary_f1_score as f1_score, binary_matthews_corrcoef as matthews_corrcoef
 
 from torchvision.transforms import ToTensor
 from torchvision.transforms.functional import crop, pad, resize
 from tqdm.auto import tqdm
 
-from custom_dataset_classes import *
+from data.dataset_paths import DATASET_ROOT_PATH
 from helper import *
+from utils import *
+from custom_dataset_classes import *
 
 parser = argparse.ArgumentParser()
 
-DS_CHOICES = [
-    "image_adv_splc",
-    "image_vis_aug",
-    "image_invis_aug",
-    "video_adv_splc",
-    "video_vis_aug",
-    "video_invis_aug",
-    "video_sham_adobe",
-    "video_e2fgvi_davis",
-    "videomatting",
-    "deepfake",
+available_datasets = [
+    "vcms",
+    "vpvm",
+    "vpim",
+    "videosham",
+    "e2fgvi_inpainting",
+    "fuseformer_inpainting",
+    "misl_deepfake",
+    "icms",
+    "ipvm",
+    "ipim",
+    "dfd",
+    "ffpp_Deepfakes",
+    "ffpp_Face2Face",
+    "ffpp_FaceSwap",
+    "ffpp_NeuralTextures",
+    "dfdc",
+    "celeb_df_v2"
 ]
+
+allowed_unknown_args = ["res_divider", "attack"]
 
 exif_ckpt_path = "/media/nas2/trained_models_repository/exifnet_tf1/exif_final.ckpt"
 open_proc = lambda cmd_list: subprocess.Popen(
@@ -50,54 +61,180 @@ random.seed(42)
 torch.set_printoptions(precision=15)
 
 
-def get_dataset(ds_choice: str) -> DataLoader:
-    if ds_choice == "image_adv_splc":
-        img_files = get_all_files(
-            "/media/nas2/graph_sim_data/image_cam_model_splicing/test",
-            suffix=".png",
-        )
-    elif ds_choice == "image_vis_aug":
-        img_files = get_all_files("/media/nas2/graph_sim_data/image_visible_aug/test", suffix=".png")
-    elif ds_choice == "image_invis_aug":
-        img_files = get_all_files(
-            "/media/nas2/graph_sim_data/image_invisible_aug_super_low_SSIM_loss/val",
-            suffix=".png",
-        )
-    elif ds_choice == "video_adv_splc":
-        img_files = get_all_files("/media/nas2/graph_sim_data/video_advanced_splicing/test", suffix=".png")
-    elif ds_choice == "video_vis_aug":
-        img_files = get_all_files("/media/nas2/graph_sim_data/video_visible_aug/test", suffix=".png")
-    elif ds_choice == "video_invis_aug":
-        img_files = get_all_files("/media/nas2/graph_sim_data/video_invisible_aug/test", suffix=".png")
-    elif ds_choice == "video_sham_adobe":
-        img_files = get_all_files(
-            "/media/nas2/Datasets/VideoSham-adobe-research/extracted_frames_ge_1920x1080"
-            + (f"/attack{ARGS.adobesham_attack}" if ARGS.adobesham_attack > 0 else ""),
-            suffix=".png",
-        )
-    elif ds_choice == "video_e2fgvi_davis":
-        resolution_divider = ARGS.e2fgvi_res_div
-        resolution = (1080 // resolution_divider, 1920 // resolution_divider)
-        img_files = get_all_files(
-            f"/media/nas2/Tai/13-e2fgvi-video-inpainting/ds_{resolution[1]}x{resolution[0]}",
-            suffix=(".png", ".jpg"),
-        )
-    elif ds_choice == "videomatting":
-        img_files = get_all_files(
-            "/media/nas2/Datasets/VideoMatting/data/dataset", suffix=".png"
-        )
-    elif ds_choice == "deepfake":
-        img_files = get_all_files(
-            "/media/nas2/deepfakes/cvpr/dataset", suffix=".png"
-        )
-    else:
-        raise (NotImplementedError)
+def parse_unknown_args(args):
+    unknown_args = {}
+    key = None
+    for arg in args:
+        if arg.startswith("--"):
+            arg_name = arg[2:]
+            if arg_name not in unknown_args:
+                unknown_args[arg_name] = ""
+                key = arg_name
+            else:
+                raise ValueError(f"Duplicate argument key {arg_name}")
+        else:
+            if key is not None:
+                unknown_args[key] += arg + " "
 
-    return img_files
+    return {k: v.strip() for k, v in unknown_args.items()}
+
+
+def get_dataset(
+    dataset_name,
+    dataset_split: Literal["train", "val", "test"] = "test",
+    shuffle=False,
+    num_samples=-1,
+    filepath_contains="",
+    **args,
+):
+    random.seed(42)
+    if dataset_name in ["vcms", "vpvm", "vpim", "icms", "ipvm", "ipim"]:
+        dataset_samples = list_dir(
+            f"{DATASET_ROOT_PATH[dataset_name]}/{dataset_split}",
+            suffix=".png",
+            contains=filepath_contains,
+        )
+        if shuffle:
+            random.shuffle(dataset_samples)
+        if num_samples > 0:
+            dataset_samples = dataset_samples[:num_samples]
+    elif dataset_name == "videosham":
+        if "attack" not in args:
+            print("`attack` not specified. Evaluating on all attacks.")
+            dataset_samples = get_all_files(
+                f"{DATASET_ROOT_PATH[dataset_name]}",
+                suffix=".png",
+                contains=filepath_contains,
+            )
+        else:
+            attacks = list(map(int, args["attack"].split()))
+            print(f"Evaluating on attacks: {attacks}")
+            dataset_samples = []
+            for attack in attacks:
+                dataset_samples += get_all_files(
+                    f"{DATASET_ROOT_PATH[dataset_name]}/attack{attack}",
+                    suffix=".png",
+                    contains=filepath_contains,
+                )
+        if shuffle:
+            random.shuffle(dataset_samples)
+        if num_samples > 0:
+            dataset_samples = dataset_samples[:num_samples]
+    elif dataset_name in ["e2fgvi_inpainting", "fuseformer_inpainting"]:
+        if "res_divider" not in args:
+            print("`res_divider` not specified. Using default value of 1.")
+        res_divider = args.get("res_divider", 1)
+        resolution = f"ds_{1920 // res_divider}x{1080 // res_divider}"
+        dataset_samples = get_all_files(
+            f"{DATASET_ROOT_PATH[dataset_name]}/{resolution}/{dataset_split}",
+            suffix=(".png", ".jpg"),
+            contains=filepath_contains,
+        )
+        if shuffle:
+            random.shuffle(dataset_samples)
+        if num_samples > 0:
+            dataset_samples = dataset_samples[:num_samples]
+    elif dataset_name == "misl_deepfake":
+        print("Warning: MISL Deepfake dataset does not have splits.")
+        dataset_samples = list_dir(
+            f"{DATASET_ROOT_PATH[dataset_name]}",
+            suffix=".png",
+            contains=filepath_contains,
+        )
+        if shuffle:
+            random.shuffle(dataset_samples)
+        if num_samples > 0:
+            dataset_samples = dataset_samples[:num_samples]
+    elif dataset_name == "dfd":
+        orig_samples = list_dir(
+            f"{DATASET_ROOT_PATH[dataset_name]}/DeepFakeDetection_orig/{dataset_split}", prefix="orig"
+        )
+        manip_samples = [
+            s.replace("mask", "manip")
+            for s in list_dir(
+                f"{DATASET_ROOT_PATH[dataset_name]}/DeepFakeDetection/{dataset_split}", prefix="mask"
+            )
+        ]  # filter out all the samples that do not have a mask
+        print({"orig": len(orig_samples), "manip": len(manip_samples)})
+        dataset_samples = orig_samples + manip_samples
+        if shuffle:
+            random.shuffle(dataset_samples)
+        if num_samples > 0:
+            dataset_samples = dataset_samples[:num_samples]
+    elif dataset_name in [
+        "ffpp_Deepfakes",
+        "ffpp_Face2Face",
+        "ffpp_FaceSwap",
+        "ffpp_NeuralTextures",
+    ]:
+        ffpp_ds = dataset_name.split("_")[1]
+        orig_samples = list_dir(f"{DATASET_ROOT_PATH['ffpp']}/orig/{dataset_split}", prefix="orig")
+        manip_samples = [
+            s.replace("mask", "manip")
+            for s in list_dir(f"{DATASET_ROOT_PATH['ffpp']}/{ffpp_ds}/{dataset_split}", prefix="mask")
+        ]  # filter out all the samples that do not have a mask
+        print({"orig": len(orig_samples), "manip": len(manip_samples)})
+        dataset_samples = orig_samples + manip_samples
+        if shuffle:
+            random.shuffle(dataset_samples)
+        if num_samples > 0:
+            dataset_samples = dataset_samples[:num_samples]
+    elif dataset_name in ["dfdc", "celeb_df_v2"]:
+        dataset_samples = list_dir(
+            DATASET_ROOT_PATH[dataset_name],
+            suffix=".png",
+            contains=filepath_contains,
+        )
+        if shuffle:
+            random.shuffle(dataset_samples)
+        if num_samples > 0:
+            dataset_samples = dataset_samples[:num_samples]
+    else:
+        raise NotImplementedError
+
+    return dataset_samples
+
+
+def parse_eval_dataset():
+    global parser, subparsers
+    p = subparsers.add_parser("dataset", help="Evaluate model on a single dataset.")
+    p.add_argument(
+        "--dataset_name",
+        "--dataset",
+        choices=available_datasets,
+        type=str,
+        required=True,
+    )
+    p.add_argument(
+        "--dataset_split",
+        choices=["train", "val", "test"],
+        type=str,
+        default="test",
+    )
+    p.add_argument(
+        "--shuffle",
+        action="store_true",
+    )
+    p.add_argument(
+        "--num_samples",
+        type=int,
+        default=-1,
+    )
+    p.add_argument(
+        "--contains",
+        type=str,
+        default="",
+    )
+    p.add_argument(
+        "--num_procs",
+        type=int,
+        default=10,
+    )
+    p.set_defaults(func=eval_dataset)
 
 
 def parse_args():
-    global ARGS
+    global parser, subparsers, ARGS
     parser.add_argument(
         "--compute-metrics",
         action="store_true",
@@ -109,33 +246,27 @@ def parse_args():
         help="Enable this flag to clean temp result directory. Won't do anything with --compute-metrics enabled.",
     )
     parser.add_argument(
-        "--dataset",
+        "--results-dir",
         type=str,
-        choices=DS_CHOICES,
-        help="The name of the dataset that you want to benchmark on",
-        required=True,
+        default="exifnet_temp_results",
+        help="Results directory. Will be cleaned if --clean-result-dir is enabled.",
     )
-    parser.add_argument(
-        "--adobesham-attack",
-        type=int,
-        choices=[-1, 1, 2, 3, 4],
-        help="The specific attack from adobesham that you want to benchmark on. -1 is ALL",
-        default=-1,
-    )
-    parser.add_argument(
-        "--e2fgvi-res-div",
-        type=int,
-        choices=[1, 2, 3, 4],
-        help="The specific resolution divider for e2fgvi that you want to benchmark on",
-        default=1,
-    )
-    parser.add_argument(
-        "--num-procs",
-        type=int,
-        help="The number of multiprocessing processes to evaluate multiple images in the dataset at the same time",
-        default=4,
-    )
-    ARGS = parser.parse_args()
+
+    subparsers = parser.add_subparsers()
+    parse_eval_dataset()
+
+    ARGS, UNKNOWN_ARGS = parser.parse_known_args()
+    UNKNOWN_ARGS = parse_unknown_args(UNKNOWN_ARGS)
+
+    if not set(UNKNOWN_ARGS.keys()).issubset(set(allowed_unknown_args)):
+        raise ValueError("Unknown arguments: {}".format(UNKNOWN_ARGS))
+
+    ARGS = argparse.Namespace(**vars(ARGS), **UNKNOWN_ARGS)
+
+    print(ARGS)
+    # return
+
+    ARGS.func(ARGS)
 
 
 def mp_call_eval_single_img(exif_ckpt_path, img_path, temp_results_dir):
@@ -150,27 +281,24 @@ def update_progress_bar(_):
     progress_bar.update()
 
 
-def main():
+def eval_dataset(args):
     global temp_results_dir
-    parse_args()
-
-    temp_results_dir = f"{os.getcwd()}/exifnet_temp_results/{ARGS.dataset}" + (
-        f"/attack{ARGS.adobesham_attack}" if ARGS.adobesham_attack > 0 else ""
+    temp_results_dir = f"{args.results_dir}/{args.dataset_name}" + (
+        f"/attack{args.attack}" if "attack" in args is not None else ""
     )
     if not os.path.exists(temp_results_dir):
         os.makedirs(temp_results_dir)
-    dataset = get_dataset(ARGS.dataset)
-    if is_shuffle:
-        random.shuffle(dataset)
 
-    if ARGS.compute_metrics is False:
+    dataset = get_dataset(**vars(args))
+
+    if args.compute_metrics is False:
         global progress_bar
         progress_bar = tqdm(total=len(dataset))
 
-        if ARGS.clean_result_dir:
+        if args.clean_result_dir:
             remove_files_in_dir(temp_results_dir)
 
-        pool = Pool(ARGS.num_procs)
+        pool = Pool(args.num_procs)
         for img_path in dataset:
             img_folder, img_basename = os.path.split(os.path.abspath(img_path))
             img_filename, img_extension = os.path.splitext(img_basename)
@@ -264,6 +392,11 @@ def main():
         neg_preds = test_class_preds[neg_labels] == 0
         print("test_class_tpr", pos_preds.sum() / pos_labels.sum())
         print("test_class_tnr", neg_preds.sum() / neg_labels.sum())
+
+
+def main():
+    global temp_results_dir
+    parse_args()
 
 
 if __name__ == "__main__":

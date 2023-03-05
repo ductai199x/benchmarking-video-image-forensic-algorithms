@@ -1,0 +1,16 @@
+DATASET_ROOT_PATH = {
+    "vcms": "/media/nas2/graph_sim_data/video_advanced_splicing",
+    "vpvm": "/media/nas2/graph_sim_data/video_visible_aug",
+    "vpim": "/media/nas2/graph_sim_data/video_invisible_aug",
+    "videosham": "/media/nas2/Datasets/VideoSham-adobe-research/extracted_frames_ge_1920x1080",
+    "e2fgvi_inpainting": "/media/nas2/Tai/13-e2fgvi-video-inpainting",
+    "fuseformer_inpainting": "/media/nas2/Tai/14-fuseformer-video-inpainting",
+    "misl_deepfake": "/media/nas2/deepfakes/cvpr/dataset",
+    "icms": "/media/nas2/graph_sim_data/image_cam_model_splicing",
+    "ipvm": "/media/nas2/graph_sim_data/image_visible_aug",
+    "ipim": "/media/nas2/graph_sim_data/image_invisible_aug_super_low_SSIM_loss",
+    "dfd": "/media/nas2/Datasets/FF++/extracted_dataset",
+    "ffpp": "/media/nas2/Datasets/FF++/extracted_dataset",
+    "dfdc": "/media/nas2/Datasets/DeepfakeDetectionChallenge/dfdc_extracted/dfdc_public_test",
+    "celeb_df_v2": "/media/nas2/Datasets/Celeb-DF-v2/extracted_dataset/test",
+}

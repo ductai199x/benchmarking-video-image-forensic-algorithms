@@ -142,10 +142,10 @@ class FSGWholeImageEvalPLWrapper(pl.LightningModule):
         detection_preds, localization_masks = self(x)
 
         self.test_class_acc(
-            detection_preds.to(self.device), y.to(self.device)
+            detection_preds.to(self.device), 1-y.to(self.device)
         )
         self.test_class_auc(
-            detection_preds.to(self.device), y.to(self.device)
+            detection_preds.to(self.device), 1-y.to(self.device)
         )
         for i in range(B):
             if y[i] == 0: continue
@@ -160,8 +160,8 @@ class FSGWholeImageEvalPLWrapper(pl.LightningModule):
             else:
                 self.test_loc_f1.append(f1_pos)
             
-            mcc_pos = matthews_corrcoef(pp, gt, num_classes=2)
-            mcc_neg = matthews_corrcoef(pp_neg, gt, num_classes=2)
+            mcc_pos = matthews_corrcoef(pp, gt)
+            mcc_neg = matthews_corrcoef(pp_neg, gt)
             if mcc_neg > mcc_pos:
                 self.test_loc_mcc.append(mcc_neg)
             else:
