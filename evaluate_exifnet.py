@@ -331,12 +331,16 @@ def eval_dataset(args):
             else:
                 detection_label = 0
 
-            meanshift = np.load(f"{temp_results_dir}/{img_filename}.npy")
+            try:
+                meanshift = np.load(f"{temp_results_dir}/{img_filename}.npy")
+            except FileNotFoundError:
+                continue
             meanshift = np.nan_to_num(meanshift)
             detection_pred = meanshift.mean()
             if detection_label == 1:
                 # Load the ground-truth mask
-                gt_mask = to_tensor(Image.open(f"{img_folder}/{img_filename}.mask", mode="r"))
+                mask_path = f"{img_folder}/{img_filename.replace('manip', 'mask')}.png" # for dfd and ffpp
+                gt_mask = to_tensor(Image.open(mask_path, mode="r"))
                 if len(gt_mask.shape) > 2:
                     gt_mask = gt_mask[0]
                 if gt_mask.shape[0] != 1080:
@@ -364,8 +368,8 @@ def eval_dataset(args):
                 else:
                     test_loc_f1.append(f1_pos)
                 
-                mcc_pos = matthews_corrcoef(pp, gt, num_classes=2)
-                mcc_neg = matthews_corrcoef(pp_neg, gt, num_classes=2)
+                mcc_pos = matthews_corrcoef(pp, gt)
+                mcc_neg = matthews_corrcoef(pp_neg, gt)
                 if mcc_neg > mcc_pos:
                     test_loc_mcc.append(mcc_neg)
                 else:
