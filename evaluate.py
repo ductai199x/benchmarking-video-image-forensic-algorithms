@@ -44,6 +44,7 @@ ARCH_CHOICES = [
     "exif",
     "noiseprint",
     "mvss",
+    "mantranet",
 ]
 
 allowed_unknown_args = ["res_divider", "attack"]
@@ -73,21 +74,24 @@ def get_model(model_codename: str) -> LightningModule:
 
         return VideoTransformer
     elif model_codename == "fsg":
-        from models.fsg import FSGWholeImageEvalPLWrapper as FSG
+        from models.fsg import FSGWholeEvalPLWrapper as FSG
 
         return FSG
     elif model_codename == "exif":
-        from models.exifnet import ExifnetImageEvalPLWrapper as Exifnet
-
-        return Exifnet
+        print("Exifnet must be evaluated using the `evaluate_exifnet.py` script.")
+        exit(1)
     elif model_codename == "noiseprint":
-        from models.noiseprint import NoiseprintImageEvalPLWrapper as Noiseprint
+        from models.noiseprint import NoiseprintEvalPLWrapper as Noiseprint
 
         return Noiseprint
     elif model_codename == "mvss":
-        from models.mvssnet import MVSSNetImageEvalWrapper as MVSSNet
+        from models.mvssnet import MVSSNetEvalPLWrapper as MVSSNet
 
         return MVSSNet
+    elif model_codename == "mantranet":
+        from models.mantranet import ManTraNetEvalPLWrapper as ManTraNet
+
+        return ManTraNet
     else:
         raise NotImplementedError
 
@@ -115,6 +119,7 @@ def parse_eval_dataset():
     p.add_argument(
         "--dataset_name",
         "--dataset",
+        "--name",
         choices=available_datasets,
         type=str,
         required=True,
@@ -128,7 +133,7 @@ def parse_eval_dataset():
     p.add_argument(
         "--batch_size",
         type=int,
-        default=10,
+        default=8,
     )
     p.add_argument(
         "--num_workers",
@@ -179,7 +184,6 @@ def parse_args():
     ARGS = argparse.Namespace(**vars(ARGS), **UNKNOWN_ARGS)
 
     print(ARGS)
-    # return
 
     ARGS.func(ARGS)
 

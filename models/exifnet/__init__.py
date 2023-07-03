@@ -14,7 +14,7 @@ tf.compat.v1.disable_eager_execution()
 ckpt_path = "/media/nas2/trained_models_repository/exifnet_tf1/exif_final.ckpt"
 
 
-class ExifnetImageEvalPLWrapper(pl.LightningModule):
+class ExifnetEvalPLWrapperClass(pl.LightningModule):
     def __init__(
         self,
         ckpt_path,
@@ -120,7 +120,7 @@ class ExifnetImageEvalPLWrapper(pl.LightningModule):
         self.log("test_class_tnr", neg_preds.sum() / neg_labels.sum())
 
 
-ExifnetImageEvalPLWrapper = ExifnetImageEvalPLWrapper(
+ExifnetEvalPLWrapper = ExifnetEvalPLWrapperClass(
     ckpt_path,
     use_gpu=0,
     quality=1.0,

@@ -5,9 +5,9 @@ from torchvision.transforms.functional import rgb_to_grayscale, resize
 from torchmetrics.classification import BinaryAUROC as AUROC, BinaryAccuracy as Accuracy
 from torchmetrics.functional.classification import binary_f1_score as f1_score, binary_matthews_corrcoef as matthews_corrcoef
 
-physical_devices = tf.config.list_physical_devices("GPU")
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
-tf.compat.v1.disable_eager_execution()
+# physical_devices = tf.config.experimental.list_physical_devices("GPU")
+# tf.config.experimental.set_memory_growth(physical_devices, True)
+# tf.compat.v1.disable_eager_execution()
 
 from .network import FullConvNet
 from .noiseprint import genNoiseprint
@@ -20,7 +20,7 @@ model_name = "net"
 chkpt_folder = "/media/nas2/trained_models_repository/noiseprint_tf1/%s_jpg%d/model"
 
 
-class NoiseprintImageEvalPLWrapper(pl.LightningModule):
+class NoiseprintEvalPLWrapperClass(pl.LightningModule):
     def __init__(
         self,
         chkpt_folder,
@@ -29,7 +29,7 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
     ):
         super().__init__()
 
-        self.QF = QF if QF < 100 else 101
+        self.QF = QF if QF < 100 else 101 
 
         self.test_class_acc = Accuracy()
         self.test_class_auc = AUROC(num_classes=2, compute_on_step=False)
@@ -78,15 +78,11 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
             loc_pixel_map, _, _, _, _, _ = noiseprint_blind_post(residual, image)
             if loc_pixel_map is None:
                 detection_preds.append(0.0)
-                localization_masks.append(torch.zeros(H, W))
+                localization_masks.append(torch.zeros(1, H, W))
             else:
                 loc_pixel_map = torch.tensor(loc_pixel_map).detach().nan_to_num(0.0)
-                amplitude = loc_pixel_map.max() - loc_pixel_map.min()
-                if amplitude > 1e-10:
-                    normalized_loc_map = (loc_pixel_map - loc_pixel_map.min()) / amplitude
-                else:
-                    normalized_loc_map = loc_pixel_map - loc_pixel_map.min()
-                normalized_loc_map = resize(normalized_loc_map.unsqueeze(0), [H, W]).squeeze()
+                normalized_loc_map = (loc_pixel_map - loc_pixel_map.min()) / (loc_pixel_map.max() - loc_pixel_map.min() + 1e-10)
+                normalized_loc_map = resize(normalized_loc_map.unsqueeze(0), [H, W])
 
                 # normalized_loc_map[normalized_loc_map >= 0.10] = 1.0
                 # normalized_loc_map[normalized_loc_map < 0.10] = 0.0
@@ -94,8 +90,9 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
                 detection_preds.append(loc_pixel_map.mean())
                 localization_masks.append(normalized_loc_map)
 
-        localization_masks = torch.concat([torch.tensor(l).unsqueeze(0) for l in localization_masks], dim=0)
-        return torch.tensor(detection_preds), torch.tensor(localization_masks)
+        detection_preds = torch.tensor(detection_preds)
+        localization_masks = torch.concat(localization_masks)
+        return detection_preds, localization_masks
 
     def test_step(self, batch, batch_idx):
         x, y, m = batch
@@ -103,8 +100,8 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
 
         detection_preds, localization_masks = self(x)
 
-        self.test_class_acc(detection_preds.to(self.device), y.to(self.device))
-        self.test_class_auc(detection_preds.to(self.device), y.to(self.device))
+        self.test_class_acc.update(detection_preds.to(self.device), y.to(self.device))
+        self.test_class_auc.update(detection_preds.to(self.device), y.to(self.device))
         for i in range(B):
             if y[i] == 0: continue
             pp = localization_masks[i].to(self.device)
@@ -146,7 +143,7 @@ class NoiseprintImageEvalPLWrapper(pl.LightningModule):
         self.log("test_class_tnr", neg_preds.sum() / neg_labels.sum())
 
 
-NoiseprintImageEvalPLWrapper = NoiseprintImageEvalPLWrapper(
+NoiseprintEvalPLWrapper = NoiseprintEvalPLWrapperClass(
     chkpt_folder,
     model_name,
     QF,

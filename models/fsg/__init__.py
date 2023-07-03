@@ -28,7 +28,7 @@ model_config = {
 state_dict_saved_path = "/media/nas2/trained_models_repository/fsg_pytorch/image/fsg_image_128_pytorch_from_tf1.pt"
 
 
-class FSGWholeImageEvalPLWrapper(pl.LightningModule):
+class FSGWholeEvalPLWrapperClass(pl.LightningModule):
     def __init__(
         self,
         model_config,
@@ -141,10 +141,10 @@ class FSGWholeImageEvalPLWrapper(pl.LightningModule):
         
         detection_preds, localization_masks = self(x)
 
-        self.test_class_acc(
+        self.test_class_acc.update(
             detection_preds.to(self.device), 1-y.to(self.device)
         )
-        self.test_class_auc(
+        self.test_class_auc.update(
             detection_preds.to(self.device), 1-y.to(self.device)
         )
         for i in range(B):
@@ -191,7 +191,7 @@ class FSGWholeImageEvalPLWrapper(pl.LightningModule):
         self.log("test_class_tnr", neg_preds.sum() / neg_labels.sum())
 
 
-FSGWholeImageEvalPLWrapper = FSGWholeImageEvalPLWrapper(
+FSGWholeEvalPLWrapper = FSGWholeEvalPLWrapperClass(
     model_config,
     state_dict_saved_path,
     patch_size=128,

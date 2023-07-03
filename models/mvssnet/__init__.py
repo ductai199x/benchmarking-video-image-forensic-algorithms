@@ -17,7 +17,7 @@ normalize_dict = {
 }
 
 
-class MVSSNetImageEvalWrapper(pl.LightningModule):
+class MVSSNetEvalPLWrapperClass(pl.LightningModule):
     def __init__(
         self,
         mvssnet_path,
@@ -124,7 +124,7 @@ class MVSSNetImageEvalWrapper(pl.LightningModule):
         self.log("test_class_tnr", neg_preds.sum() / neg_labels.sum())
 
 
-MVSSNetImageEvalWrapper = MVSSNetImageEvalWrapper(
+MVSSNetEvalPLWrapper = MVSSNetEvalPLWrapperClass(
     mvssnet_path=mvssnet_path,
     resfcn_path=resfcn_path,
 )
